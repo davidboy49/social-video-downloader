@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function LinkInput({ onParse, isParsing }) {
+export default function LinkInput({ onParse, isParsing, showToast }) {
   const [inputValue, setInputValue] = useState('');
 
   const handleSubmit = (e) => {
@@ -21,7 +21,7 @@ export default function LinkInput({ onParse, isParsing }) {
       });
 
     if (urls.length === 0) {
-      alert('Please enter one or more valid URLs (including http:// or https://)');
+      showToast('Please enter one or more valid URLs (including http:// or https://)', 'error');
       return;
     }
 
@@ -70,10 +70,6 @@ export default function LinkInput({ onParse, isParsing }) {
       </form>
 
       <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
         .spinner {
           margin-right: 4px;
         }

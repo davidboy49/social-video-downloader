@@ -49,7 +49,7 @@ export default function Header({
             </span>
           </div>
         ) : (
-          <div className="status-badge warning">
+          <div className="status-badge warning" tabIndex={0} aria-label="FFmpeg system status warning. Focus to view options.">
             <span className="status-dot">⚠️</span>
             FFmpeg Missing
             <div className="tooltip">
@@ -82,10 +82,6 @@ export default function Header({
       </div>
 
       <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
         .install-spinner {
           display: inline-block;
         }

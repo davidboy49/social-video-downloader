@@ -113,6 +113,7 @@ export default function DownloadQueue({ tasks, onCancel, onRemove, onClearComple
                         className="btn btn-danger btn-sm"
                         style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
                         onClick={() => onCancel(task.id)}
+                        aria-label={`Cancel download for ${task.title}`}
                       >
                         Cancel
                       </button>
@@ -121,6 +122,8 @@ export default function DownloadQueue({ tasks, onCancel, onRemove, onClearComple
                         className="btn btn-secondary btn-sm"
                         style={{ padding: '0.35rem' }}
                         onClick={() => onRemove([task.id])}
+                        aria-label={`Remove download of ${task.title} from queue`}
+                        title="Remove from queue"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>

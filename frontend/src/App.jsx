@@ -19,6 +19,7 @@ export default function App() {
   // Toast notifications state
   const [toast, setToast] = useState({ show: false, message: '', type: 'info' });
   const toastTimeoutRef = useRef(null);
+  const eventSourceRef = useRef(null);
 
   const showToast = (message, type = 'info') => {
     if (toastTimeoutRef.current) {
@@ -64,43 +65,54 @@ export default function App() {
     fetchStatusAndSettings();
 
     // Setup SSE connection
-    let eventSource = new EventSource('/api/events');
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'tasks') {
-          setTasks(data.tasks);
-        } else if (data.type === 'ffmpeg-install') {
-          setFfmpegInstallState({
-            status: data.status,
-            progress: data.progress,
-            details: data.details
-          });
-          if (data.status === 'complete') {
-            setFfmpegAvailable(true);
-            showToast('FFmpeg successfully installed!', 'success');
-          } else if (data.status === 'failed') {
-            showToast('FFmpeg installation failed.', 'error');
-          }
-        }
-      } catch (err) {
-        console.error('Error parsing SSE event:', err);
+    const connectSSE = () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
       }
+
+      const eventSource = new EventSource('/api/events');
+      eventSourceRef.current = eventSource;
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'tasks') {
+            setTasks(data.tasks);
+          } else if (data.type === 'ffmpeg-install') {
+            setFfmpegInstallState({
+              status: data.status,
+              progress: data.progress,
+              details: data.details
+            });
+            if (data.status === 'complete') {
+              setFfmpegAvailable(true);
+              showToast('FFmpeg successfully installed!', 'success');
+            } else if (data.status === 'failed') {
+              showToast('FFmpeg installation failed.', 'error');
+            }
+          }
+        } catch (err) {
+          console.error('Error parsing SSE event:', err);
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.error('SSE Error:', err);
+        eventSource.close();
+        
+        // Try to reconnect in 5 seconds
+        setTimeout(() => {
+          connectSSE();
+        }, 5000);
+      };
     };
 
-    eventSource.onerror = (err) => {
-      console.error('SSE Error:', err);
-      eventSource.close();
-      
-      // Try to reconnect in 5 seconds
-      setTimeout(() => {
-        eventSource = new EventSource('/api/events');
-      }, 5000);
-    };
+    connectSSE();
 
     return () => {
-      eventSource.close();
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
       if (toastTimeoutRef.current) {
         clearTimeout(toastTimeoutRef.current);
       }
@@ -243,7 +255,7 @@ export default function App() {
       />
       
       <main style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <LinkInput onParse={handleParse} isParsing={isParsing} />
+        <LinkInput onParse={handleParse} isParsing={isParsing} showToast={showToast} />
         
         <ParseResults
           results={parsedResults}

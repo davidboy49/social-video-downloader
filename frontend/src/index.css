@@ -157,6 +157,8 @@ h1, h2, h3, h4 {
   flex-wrap: wrap;
   gap: 1.5rem;
   padding-bottom: 0.5rem;
+  position: relative;
+  z-index: 50;
 }
 
 .brand-section {
@@ -226,7 +228,7 @@ h1, h2, h3, h4 {
   border-radius: var(--radius-sm);
   padding: 0.75rem;
   position: absolute;
-  z-index: 10;
+  z-index: 9999;
   top: 125%;
   right: 0;
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -235,13 +237,15 @@ h1, h2, h3, h4 {
   line-height: 1.4;
   opacity: 0;
   transition: opacity 0.3s;
+  pointer-events: auto;
 }
 
 body.dark-theme .status-badge.warning .tooltip {
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
 
-.status-badge.warning:hover .tooltip {
+.status-badge.warning:hover .tooltip,
+.status-badge.warning:focus-within .tooltip {
   visibility: visible;
   opacity: 1;
 }
@@ -488,9 +492,18 @@ body.dark-theme .video-card.error {
 }
 
 .checkbox-custom input {
+  position: absolute;
   opacity: 0;
-  width: 0;
-  height: 0;
+  cursor: pointer;
+  height: 20px;
+  width: 20px;
+  margin: 0;
+  z-index: 2;
+}
+
+.checkbox-custom input:focus-visible ~ .checkmark {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .checkmark {
@@ -966,3 +979,18 @@ body.dark-theme .toast {
     width: 100%;
   }
 }
+
+/* Global focus visibility for accessibility */
+.btn:focus-visible,
+.form-input:focus-visible,
+.link-textarea:focus-visible,
+.format-select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+

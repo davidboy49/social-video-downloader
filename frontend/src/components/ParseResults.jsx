@@ -186,6 +186,7 @@ export default function ParseResults({ results, onDownload, onRemove }) {
                   style={{ padding: '0.45rem' }}
                   onClick={() => onRemove([index])}
                   title="Remove from list"
+                  aria-label="Remove video from list"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>

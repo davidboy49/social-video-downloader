@@ -14,7 +14,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001']
+}));
 app.use(express.json());
 
 // Persistent Settings File
@@ -40,18 +42,38 @@ if (fs.existsSync(settingsFilePath)) {
 }
 
 // SSE Clients Registry
-let sseClients = [];
+const sseClients = new Set();
 
-// Broadcast task updates to all SSE clients
+let lastUpdate = 0;
+let updateTimeout = null;
+
+// Throttled broadcast to prevent CPU and network overhead during download progress
 const broadcastUpdate = () => {
-  const data = JSON.stringify({ type: 'tasks', tasks: queue.getTasks() });
-  sseClients.forEach((client) => {
-    try {
-      client.write(`data: ${data}\n\n`);
-    } catch (e) {
-      // client connection might be broken
+  const now = Date.now();
+  const remaining = 500 - (now - lastUpdate);
+
+  const executeBroadcast = () => {
+    lastUpdate = Date.now();
+    updateTimeout = null;
+    const data = JSON.stringify({ type: 'tasks', tasks: queue.getTasks() });
+    for (const client of sseClients) {
+      try {
+        client.write(`data: ${data}\n\n`);
+      } catch (e) {
+        // client connection might be broken
+      }
     }
-  });
+  };
+
+  if (remaining <= 0) {
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
+      updateTimeout = null;
+    }
+    executeBroadcast();
+  } else if (!updateTimeout) {
+    updateTimeout = setTimeout(executeBroadcast, remaining);
+  }
 };
 
 // Initialize download queue
@@ -69,18 +91,17 @@ app.get('/api/events', (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
+    'Connection': 'keep-alive'
   });
 
-  // Send initial data
+  // Send initial data immediately
   const initialData = JSON.stringify({ type: 'tasks', tasks: queue.getTasks() });
   res.write(`data: ${initialData}\n\n`);
 
-  sseClients.push(res);
+  sseClients.add(res);
 
   req.on('close', () => {
-    sseClients = sseClients.filter((client) => client !== res);
+    sseClients.delete(res);
   });
 });
 
@@ -126,17 +147,31 @@ app.post('/api/settings', (req, res) => {
 // Helper: Parse a single URL using yt-dlp -J
 const parseUrlMetadata = (url) => {
   return new Promise((resolve) => {
+    // Pass flags first, then the argument separator '--', then the url, to prevent CLI argument injection
     const args = [
       '-m', 'yt_dlp',
-      url,
       '-J',
       '--no-playlist',
-      '--flat-playlist'
+      '--flat-playlist',
+      '--',
+      url
     ];
 
     const child = spawn('python', args);
     let stdoutBuffer = '';
     let stderrBuffer = '';
+
+    // Safeguard: Kill process if it hangs/stalls
+    const timeout = setTimeout(() => {
+      try {
+        child.kill('SIGKILL');
+      } catch (e) {}
+      resolve({
+        url,
+        success: false,
+        error: 'Parsing timed out after 60 seconds.'
+      });
+    }, 60000);
 
     child.stdout.on('data', (data) => {
       stdoutBuffer += data.toString();
@@ -147,6 +182,7 @@ const parseUrlMetadata = (url) => {
     });
 
     child.on('close', (code) => {
+      clearTimeout(timeout);
       if (code !== 0) {
         let errorMsg = 'Failed to extract video metadata.';
         if (stderrBuffer.includes('ERROR:')) {
@@ -184,6 +220,7 @@ const parseUrlMetadata = (url) => {
     });
 
     child.on('error', (err) => {
+      clearTimeout(timeout);
       resolve({
         url,
         success: false,
@@ -199,6 +236,20 @@ app.post('/api/parse', async (req, res) => {
 
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return res.status(400).json({ error: 'URLs array is required.' });
+  }
+
+  // Security: Prevent Denial of Service by capping maximum batch size
+  if (urls.length > 20) {
+    return res.status(400).json({ error: 'Maximum of 20 URLs can be parsed in a single request.' });
+  }
+
+  // Security: Validate URLs strictly to prevent CLI injection
+  const urlRegex = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
+  for (const url of urls) {
+    const trimmed = url.trim();
+    if (!urlRegex.test(trimmed)) {
+      return res.status(400).json({ error: `Invalid URL detected: "${trimmed}". URLs must start with http:// or https:// and contain no spaces.` });
+    }
   }
 
   // Parse up to 5 URLs in parallel to be nice on CPU and avoid IP bans
@@ -281,9 +332,9 @@ app.post('/api/ffmpeg/install', (req, res) => {
   
   const broadcastInstallUpdate = () => {
     const data = JSON.stringify({ type: 'ffmpeg-install', ...ffmpegInstallState });
-    sseClients.forEach(client => {
+    for (const client of sseClients) {
       try { client.write(`data: ${data}\n\n`); } catch(e) {}
-    });
+    }
   };
   
   broadcastInstallUpdate();
@@ -314,8 +365,14 @@ app.post('/api/ffmpeg/install', (req, res) => {
       ffmpegInstallState = { status: 'complete', progress: 100, details: 'FFmpeg installed successfully!' };
       queue.setFfmpegAvailable(true);
     } else {
-      ffmpegInstallState = { status: 'failed', progress: 0, details: 'FFmpeg installation failed.' };
+      ffmpegInstallState = { status: 'failed', progress: 0, details: `FFmpeg installation failed (exit code ${code}).` };
     }
+    broadcastInstallUpdate();
+  });
+
+  child.on('error', (err) => {
+    console.error('Failed to start FFmpeg installer process:', err);
+    ffmpegInstallState = { status: 'failed', progress: 0, details: `Failed to spawn installer: ${err.message}` };
     broadcastInstallUpdate();
   });
 

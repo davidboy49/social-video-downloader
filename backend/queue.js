@@ -144,7 +144,6 @@ export class DownloadQueue {
     // Build arguments for yt-dlp
     const args = [
       '-m', 'yt_dlp',
-      task.url,
       '--newline',
       '--progress',
       '--no-playlist'
@@ -155,7 +154,6 @@ export class DownloadQueue {
     if (localFfmpegDir) {
       args.push('--ffmpeg-location', localFfmpegDir);
     }
-
 
     // Determine output file template
     const outputTemplate = path.join(task.outputDir, '%(title)s.%(ext)s');
@@ -182,6 +180,9 @@ export class DownloadQueue {
         args.push('-f', 'b');
       }
     }
+
+    // Safe argument positioning to prevent options injection via URLs
+    args.push('--', task.url);
 
     // Spawn Python running yt-dlp
     const child = spawn('python', args);
