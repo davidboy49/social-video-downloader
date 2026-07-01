@@ -1,0 +1,9 @@
+{
+  "name": "social-video-downloader",
+  "version": "1.0.0",
+  "description": "Root configuration to start both frontend and backend for the Video Downloader",
+  "type": "module",
+  "scripts": {
+    "start": "node start-all.js"
+  }
+}
